@@ -15,7 +15,7 @@ app.disable('x-powered-by');
 // ================= CONFIG =================
 
 const ADS_ENABLED = true;
-const ADS_CLIENT = "ca-pub-XXXXXXXXXXXX";
+const ADS_CLIENT = "ca-pub-9520234118451048";
 
 function ad(slot){
  if(!ADS_ENABLED) return "";
