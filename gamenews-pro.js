@@ -301,4 +301,6 @@ app.get('/sitemap.xml',(req,res)=>{
 
 // ================= START =================
 
-app.listen(3000,()=>console.log('🚀 ENTERPRISE ONLINE READY — localhost:3000'));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT);
+
