@@ -202,33 +202,150 @@ app.get('/search',(req,res)=>{
 });
 
 // ================= LOGIN / REGISTER / RESET =================
+app.get("/login", (req,res)=>{
+res.send(`
+<html>
+<head>
+<title>Login</title>
+<style>
+body{
+margin:0;
+background:linear-gradient(135deg,#020617,#0f172a);
+display:flex;
+justify-content:center;
+align-items:center;
+height:100vh;
+font-family:Arial;
+color:white;
+}
+.card{
+background:#020617;
+padding:40px;
+border-radius:14px;
+width:360px;
+box-shadow:0 0 30px rgba(0,255,255,.08);
+}
+h1{color:#38bdf8;text-align:center}
+input{
+width:100%;
+padding:14px;
+margin:10px 0;
+border-radius:8px;
+border:1px solid #1f2937;
+background:#020617;
+color:white;
+}
+button{
+width:100%;
+padding:14px;
+background:#38bdf8;
+border:none;
+border-radius:8px;
+font-weight:bold;
+cursor:pointer;
+}
+.error{
+background:#7f1d1d;
+padding:10px;
+border-radius:8px;
+text-align:center;
+margin-top:10px;
+}
+</style>
+</head>
+<body>
 
-app.get('/login',(req,res)=>{
-  res.send(shell(`<form method=post>
-  <h2>Login</h2>
-  <input name=email>
-  <input name=password type=password>
-  <button class=btn>Entrar</button>
-  <a href=/register>Criar conta</a> | <a href=/reset>Esqueci senha</a>
-  </form>`,req,'Login'));
-});
+<div class="card">
+<h1>🎮 Login</h1>
+
+<form method="POST" action="/login">
+<input name="email" placeholder="Email">
+<input name="password" type="password" placeholder="Senha">
+<button>Entrar</button>
+</form>
+
+<a href="/register">Criar conta</a>
+
+${req.query.error ? `<div class="error">Email ou senha errados</div>`:""}
+
+</div>
+
+</body>
+</html>
+`)
+})
+
 
 app.post('/login',(req,res)=>{
   db.get(`SELECT * FROM users WHERE email=?`,[req.body.email],(e,u)=>{
     if(!u||!bcrypt.compareSync(req.body.password,u.password))
-      return res.send('Login ou senha errados');
+      return res.redirect("/login?error=1");
     req.session.user=u; res.redirect('/');
   });
 });
+app.get("/register",(req,res)=>{
+res.send(`
+<html>
+<head>
+<title>Cadastro</title>
+<style>
+body{
+margin:0;
+background:linear-gradient(135deg,#020617,#0f172a);
+display:flex;
+justify-content:center;
+align-items:center;
+height:100vh;
+font-family:Arial;
+color:white;
+}
+.card{
+background:#020617;
+padding:40px;
+border-radius:14px;
+width:360px;
+box-shadow:0 0 30px rgba(0,255,255,.08);
+}
+h1{color:#38bdf8;text-align:center}
+input{
+width:100%;
+padding:14px;
+margin:10px 0;
+border-radius:8px;
+border:1px solid #1f2937;
+background:#020617;
+color:white;
+}
+button{
+width:100%;
+padding:14px;
+background:#38bdf8;
+border:none;
+border-radius:8px;
+font-weight:bold;
+cursor:pointer;
+}
+</style>
+</head>
+<body>
 
-app.get('/register',(req,res)=>{
-  res.send(shell(`<form method=post>
-  <input name=name placeholder=Nome>
-  <input name=email placeholder=Email>
-  <input name=password type=password>
-  <button class=btn>Cadastrar</button>
-  </form>`,req,'Cadastro'));
-});
+<div class="card">
+<h1>🚀 Cadastro</h1>
+
+<form method="POST" action="/register">
+<input name="name" placeholder="Nome">
+<input name="email" placeholder="Email">
+<input name="password" type="password" placeholder="Senha">
+<button>Criar conta</button>
+</form>
+
+</div>
+
+</body>
+</html>
+`)
+})
+
 
 app.post('/register',(req,res)=>{
   const h=bcrypt.hashSync(req.body.password,10);
