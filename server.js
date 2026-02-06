@@ -1,4 +1,4 @@
-// ================= GAME NEWS PRO — GLOBAL ENTERPRISE BUILD =================
+// ================= GAME NEWS PRO — ENTERPRISE + ADS MAX =================
 
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
@@ -15,13 +15,29 @@ app.disable('x-powered-by');
 
 const db = new sqlite3.Database('./database.db');
 
+// ================= ADS CONFIG =================
+
+const ADS_ENABLED = true;
+const ADS_CLIENT = "ca-pub-XXXXXXXXXXXX"; // ← trocar depois
+
+function adSlot(slot){
+ if(!ADS_ENABLED) return "";
+ return `
+ <ins class="adsbygoogle"
+  style="display:block"
+  data-ad-client="${ADS_CLIENT}"
+  data-ad-slot="${slot}"
+  data-ad-format="auto"
+  data-full-width-responsive="true"></ins>
+ <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+ `;
+}
+
 // ================= FILES =================
 
 if (!fs.existsSync('uploads')) fs.mkdirSync('uploads');
 const upload = multer({ dest: 'uploads/' });
 app.use('/uploads', express.static('uploads'));
-
-// ================= MIDDLEWARE =================
 
 app.use(express.urlencoded({extended:true}));
 app.use(express.json());
@@ -67,13 +83,6 @@ db.run(`CREATE TABLE IF NOT EXISTS posts(
  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 )`);
 
-db.run(`CREATE TABLE IF NOT EXISTS comments(
- id INTEGER PRIMARY KEY,
- post_id INTEGER,
- author TEXT,
- content TEXT
-)`);
-
 db.run(`CREATE TABLE IF NOT EXISTS translations(
  id INTEGER PRIMARY KEY,
  post_id INTEGER,
@@ -82,13 +91,6 @@ db.run(`CREATE TABLE IF NOT EXISTS translations(
  content TEXT
 )`);
 
-db.run(`CREATE TABLE IF NOT EXISTS views_log(
- id INTEGER PRIMARY KEY,
- post_id INTEGER,
- ts DATETIME DEFAULT CURRENT_TIMESTAMP
-)`);
-
-// admin padrão
 const hash=bcrypt.hashSync("admin123",10);
 db.run(`INSERT OR IGNORE INTO users(id,name,email,password,role)
 VALUES(1,'Admin','admin@games.com',?,'admin')`,hash);
@@ -116,9 +118,7 @@ async function translate(text,target){
   });
   const j=await r.json();
   return j.translatedText;
- }catch{
-  return text;
- }
+ }catch{return text;}
 }
 
 // ================= UI =================
@@ -130,12 +130,13 @@ header{background:#020617;border-bottom:1px solid #1f2937}
 .search{flex:1}
 .search input{width:100%;padding:10px;border-radius:8px;background:#020617;color:#fff;border:1px solid #1f2937}
 .layout{max-width:1400px;margin:auto;display:grid;grid-template-columns:160px 1fr 160px;gap:20px}
-.ad{border:1px dashed #1f2937;margin-top:20px;text-align:center;padding:20px;color:#64748b}
+.ad{margin-top:20px}
 .main{padding:20px}
 .card{background:#020617;border:1px solid #1f2937;border-radius:14px;overflow:hidden}
 .card img{width:100%;height:200px;object-fit:cover}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
-.btn{background:#38bdf8;color:#000;padding:8px 14px;border-radius:8px;text-decoration:none}`;
+.btn{background:#38bdf8;color:#000;padding:8px 14px;border-radius:8px;text-decoration:none}
+@media(max-width:1100px){.layout{grid-template-columns:1fr}.ad{display:none}}`;
 
 function shell(body,req,title="GameNews"){
  const u=req.session.user;
@@ -145,43 +146,60 @@ function shell(body,req,title="GameNews"){
   else if(isEmployee(u)) right=`${u.name} | <a href=/cms>CMS</a> | <a href=/logout>Sair</a>`;
   else right=`${u.name} | <a href=/logout>Sair</a>`;
  }
+
  return `<!doctype html><html><head>
  <meta name=viewport content="width=device-width,initial-scale=1">
  <meta name=description content="${title}">
- <title>${title}</title><style>${css}</style></head>
- <body>
+ <title>${title}</title>
+ <style>${css}</style>
+
+ ${ADS_ENABLED ? `
+ <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADS_CLIENT}" crossorigin="anonymous"></script>
+ `:""}
+
+ </head><body>
  <header><div class=top>
  <div class=logo>🎮 GameNews</div>
  <form class=search action=/search><input name=q placeholder=Buscar></form>
  ${right}
  </div></header>
+
+ ${adSlot("1001")}
+
  <div class=layout>
- <div class=ad>ADS</div>
+ <div class=ad>${adSlot("1002")}</div>
  <div class=main>${body}</div>
- <div class=ad>ADS</div>
- </div></body></html>`;
+ <div class=ad>${adSlot("1003")}</div>
+ </div>
+
+ </body></html>`;
 }
 
 // ================= HOME =================
 
 app.get('/',(req,res)=>{
  const c=getCache('home'); if(c) return res.send(c);
+
  db.all(`SELECT * FROM posts ORDER BY featured DESC, created_at DESC`,(e,p)=>{
-  const html=shell(`<div class=grid>${
-   p.map(x=>`<div class=card>
-   <img src="/${x.banner||''}">
-   <div style="padding:16px">
-   <h3>${x.title}</h3>
-   <p>${(x.content||'').substring(0,140)}...</p>
-   <a href=/news/${x.slug}>Ler</a>
-   </div></div>`).join('')
-  }</div>`,req);
-  setCache('home',html);
-  res.send(html);
+
+ const cards = p.map((x,i)=>`
+ <div class=card>
+ <img src="/${x.banner||''}">
+ <div style="padding:16px">
+ <h3>${x.title}</h3>
+ <p>${(x.content||'').substring(0,140)}...</p>
+ <a href=/news/${x.slug}>Ler</a>
+ </div></div>
+ ${i===2 ? adSlot("2001") : ""}
+ `).join('');
+
+ const html=shell(`<div class=grid>${cards}</div>`,req);
+ setCache('home',html);
+ res.send(html);
  });
 });
 
-// ================= NEWS + MULTILANG =================
+// ================= NEWS =================
 
 app.get('/news/:slug',async(req,res)=>{
 
@@ -191,7 +209,6 @@ app.get('/news/:slug',async(req,res)=>{
  if(!p) return res.send("Notícia não encontrada");
 
  db.run("UPDATE posts SET views=views+1 WHERE id=?",[p.id]);
- db.run("INSERT INTO views_log(post_id) VALUES(?)",[p.id]);
 
  if(lang!=='pt'){
   db.get(`SELECT * FROM translations WHERE post_id=? AND lang=?`,
@@ -212,8 +229,15 @@ app.get('/news/:slug',async(req,res)=>{
   res.send(shell(`
   <h1>${p.title}</h1>
   <img src="/${p.banner}" style="width:100%;border-radius:12px">
+
+  ${adSlot("3001")}
+
   <div>${p.content}</div>
+
   ${p.video||''}
+
+  ${adSlot("3002")}
+
   `,req,p.title));
  }
 
@@ -228,13 +252,6 @@ app.get('/search',(req,res)=>{
  db.all(`SELECT slug,title FROM posts WHERE title LIKE ?`,
  [`%${q}%`],
  (e,r)=>res.send(shell(r.map(x=>`<a href=/news/${x.slug}>${x.title}</a><br>`).join(''),req,'Busca')));
-});
-
-// ================= TRENDING =================
-
-app.get('/trending',(req,res)=>{
- db.all(`SELECT title,slug,views FROM posts ORDER BY views DESC LIMIT 8`,
- (e,r)=>res.json(r));
 });
 
 // ================= LOGIN =================
@@ -267,12 +284,6 @@ app.post('/register',(req,res)=>{
  ()=>res.redirect('/login'));
 });
 
-// ================= LOGOUT =================
-
-app.get('/logout',(req,res)=>{
- req.session.destroy(()=>res.redirect('/'));
-});
-
 // ================= CMS =================
 
 app.get('/cms',requireEmployee,(req,res)=>
@@ -282,15 +293,11 @@ app.get('/cms/new',requireEmployee,(req,res)=>res.send(shell(`
 <form method=post enctype=multipart/form-data>
 <input type=file name=banner required>
 <input name=title required>
-<div contenteditable=true id=ed style="border:1px solid #333;padding:10px"></div>
-<input type=hidden name=content id=content>
+<textarea name=content></textarea>
 <textarea name=video></textarea>
 <select name=featured><option value=0>Não</option><option value=1>Sim</option></select>
 <button>Publicar</button>
 </form>
-<script>
-document.querySelector("form").onsubmit=()=>content.value=ed.innerHTML
-</script>
 `,req)));
 
 app.post('/cms/new',requireEmployee,upload.single('banner'),(req,res)=>{
@@ -298,21 +305,17 @@ app.post('/cms/new',requireEmployee,upload.single('banner'),(req,res)=>{
  db.run(`INSERT INTO posts(title,slug,content,banner,video,featured)
  VALUES(?,?,?,?,?,?)`,
  [req.body.title,slug,req.body.content,req.file.path,req.body.video,req.body.featured],
- err=>{
-  if(err) return res.send("Título duplicado");
-  cache.clear();
-  res.redirect('/');
- });
+ ()=>{cache.clear();res.redirect('/');});
 });
 
-// ================= ADMIN USERS =================
+// ================= ADMIN =================
 
 app.get('/admin',onlyAdmin,(req,res)=>{
  db.all(`SELECT id,name,email,role FROM users`,(e,u)=>{
-  res.send(shell(u.map(x=>`
-  ${x.name} — ${x.role}
-  ${x.role==='user'?`<a href=/make-employee/${x.id}>Promover</a>`:''}
-  <br>`).join(''),req));
+ res.send(shell(u.map(x=>`
+ ${x.name} — ${x.role}
+ ${x.role==='user'?`<a href=/make-employee/${x.id}>Promover</a>`:''}
+ <br>`).join(''),req));
  });
 });
 
@@ -320,12 +323,6 @@ app.get('/make-employee/:id',onlyAdmin,(req,res)=>{
  db.run(`UPDATE users SET role='employee' WHERE id=?`,
  [req.params.id],
  ()=>res.redirect('/admin'));
-});
-
-// ================= API =================
-
-app.get('/api/posts',(req,res)=>{
- db.all(`SELECT id,title,slug,views FROM posts`,(e,r)=>res.json(r));
 });
 
 // ================= START =================
